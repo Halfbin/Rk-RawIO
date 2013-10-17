@@ -11,8 +11,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\Include\Rk\IO\FileStream.hpp" />
-    <ClInclude Include="..\Include\Rk\IO\RawIO.hpp" />
+    <ClInclude Include="..\Include\Rk\file_stream.hpp" />
+    <ClInclude Include="..\Include\Rk\raw_io.hpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{97A780F9-C32B-470B-AEAE-46CD644D3F5D}</ProjectGuid>
