@@ -16,47 +16,18 @@
 #include <Rk/raw_io.hpp>
 #include <Rk/types.hpp>
 
+#ifndef RK_RAWIO_API
+#define RK_RAWIO_API __declspec(dllimport)
+#endif
+
 namespace Rk
 {
   namespace fio
   {
-    namespace stream_private
+    namespace detail
     {
-      extern "C"
-      {
-        #define fromdll(type) __declspec(dllimport) type __stdcall
-        fromdll (void*) CreateFileA                (const char*, u32, u32, void*, u32, u32, void*);
-        fromdll (void*) CreateFileW                (const wchar_t*, u32, u32, void*, u32, u32, void*);
-        fromdll (void)  CloseHandle                (void*);
-        fromdll (i32)   ReadFile                   (void*, void*, u32, u32*, void*);
-        fromdll (i32)   WriteFile                  (void*, const void*, u32, u32*, void*);
-        fromdll (i32)   SetFilePointerEx           (void*, i64, i64*, u32);
-        fromdll (i32)   GetFileSizeEx              (void*, i64*);
-        fromdll (i32)   FlushFileBuffers           (void*);
-        fromdll (i32)   SetFileInformationByHandle (void*, u32, void*, u32);
-        fromdll (u32)   GetLastError               ();
-        #undef fromdll
-      }
-
-      static inline void* CreateFile (const char* path, u32 acc, u32 share, u32 strat, u32 attr)
-      {
-        return CreateFileA (path, acc, share, nullptr, strat, attr, nullptr);
-      }
-
-      static inline void* CreateFile (const wchar_t* path, u32 acc, u32 share, u32 strat, u32 attr)
-      {
-        return CreateFileW (path, acc, share, nullptr, strat, attr, nullptr);
-      }
-
-      static inline void* CreateFile (const char16* path, u32 acc, u32 share, u32 strat, u32 attr)
-      {
-        return CreateFile ((wchar_t*) path, acc, share, strat, attr);
-      }
-
       enum : u32
       {
-        error_handle_eof = 38,
-
         create_new        = 1,
         create_always     = 2,
         open_existing     = 3,
@@ -64,248 +35,121 @@ namespace Rk
         truncate_existing = 5,
 
         generic_read  = 0x80000000,
-        generic_write = 0x40000000,
-
-        strategy_mask = 0x00000007,
-        access_mask   = 0xc0000000,
-
-        file_share_read = 0x1,
-
-        file_attribute_normal = 0x80,
-
-        file_disposition_info = 4
+        generic_write = 0x40000000
       };
 
     }
 
-    enum seek_mode : u32
+    enum class seek_mode : u32
     {
-      seek_set    = 0,
-      seek_offset = 1,
-      seek_end    = 2
+      set    = 0,
+      offset = 1,
+      end    = 2
     };
 
-    enum file_strategy
+    enum class open_mode : u32
     {
-      file_modify  = stream_private::open_existing,
-      file_write   = stream_private::open_always,
-      file_new     = stream_private::create_new,
-      file_replace = stream_private::truncate_existing,
-      file_clean   = stream_private::create_always
+      new_only = detail::create_new,
+      blank    = detail::create_always,
+      modify   = detail::open_existing,
+      always   = detail::open_always,
+      replace  = detail::truncate_existing
     };
 
-    class stream_base
+    namespace detail
     {
-      void* handle;
-
-      template <typename char_t>
-      static void* open (string_ref_base <char_t> path, u32 access, u32 strategy)
+      class stream_base
       {
-        using namespace stream_private;
+        void* handle;
 
-        auto handle = CreateFile (
-          path.data (),
-          access,
-          file_share_read,
-          strategy,
-          file_attribute_normal/* | access_hint*/
-        );
+      protected:
+        RK_RAWIO_API stream_base (cstring_ref   path, u32 access, u32 strategy);
+        RK_RAWIO_API stream_base (u16string_ref path, u32 access, u32 strategy);
 
-        if (!handle || handle == (void*) ~uptr (0))
-          throw win_error ("CreateFile failed");
-
-        return handle;
-      }
-
-    protected:
-      template <typename char_t>
-      stream_base (string_ref_base <char_t> path, u32 access, u32 strategy) :
-        handle (open (path, access, strategy))
-      { }
-      
-      stream_base (stream_base&& other) :
-        handle (other.handle)
-      {
-        other.handle = nullptr;
-      }
-
-      stream_base             (const stream_base&) = delete;
-      stream_base& operator = (const stream_base&) = delete;
-
-      size_t read (void* buffer, size_t capacity)
-      {
-        using namespace stream_private;
-
-        if (!buffer)
-          throw std::invalid_argument ("Null buffer");
-
-        if (capacity == 0)
-          return 0;
-
-        u32 bytes_read = 0;
-        auto ok = ReadFile (get_handle (), buffer, capacity, &bytes_read, 0);
-        if (!ok)
+        stream_base (stream_base&& other) :
+          handle (other.handle)
         {
-          auto err = GetLastError ();
-          if (err != error_handle_eof)
-            throw win_error ("ReadFile failed", err);
+          other.handle = nullptr;
         }
 
-        return bytes_read;
-      }
+        stream_base             (const stream_base&) = delete;
+        stream_base& operator = (const stream_base&) = delete;
 
-      void write (const void* data, size_t size)
-      {
-        using namespace stream_private;
+        RK_RAWIO_API size_t read  (void* buffer, size_t capacity);
+        RK_RAWIO_API void   write (const void* data, size_t size);
+        RK_RAWIO_API void   flush ();
 
-        if (size && !data)
-          throw std::invalid_argument ("Null data");
+        RK_RAWIO_API void delete_on_close (bool value = true);
 
-        if (size == 0)
-          return;
+      public:
+        RK_RAWIO_API ~stream_base ();
+        
+        RK_RAWIO_API u64  seek (i64 offset, seek_mode mode = seek_mode::offset);
+        RK_RAWIO_API u64  tell () const;
+        RK_RAWIO_API u64  size () const;
+        RK_RAWIO_API bool eof  () const;
 
-        u32 bytes_written = 0;
-        auto ok = WriteFile (get_handle (), data, size, &bytes_written, 0);
-        if (!ok)
-          throw win_error ("WriteFile failed");
-      }
-    
-      void flush ()
-      {
-        stream_private::FlushFileBuffers (get_handle ());
-      }
+        void* get_handle () const
+        {
+          return handle;
+        }
 
-      void delete_on_close (bool value = true)
-      {
-        using namespace stream_private;
+      };
+      
+    }
 
-        i32 info = value ? 1 : 0;
-        auto ok = SetFileInformationByHandle (handle, file_disposition_info, &info, sizeof (info));
-        if (!ok)
-          throw win_error ("SetFileInformationByHandle failed");
-      }
-
-      void retain_on_close (bool value = true)
-      {
-        delete_on_close (!value);
-      }
-
-    public:
-      ~stream_base ()
-      {
-        stream_private::CloseHandle (handle);
-      }
-    
-      u64 seek (i64 offset, seek_mode mode = seek_offset)
-      {
-        using namespace stream_private;
-
-        if (mode == seek_set && offset < 0)
-          throw std::invalid_argument ("Cannot seek before start of file");
-        else if (mode == seek_end && offset > 0)
-          throw std::invalid_argument ("Cannot seek beyond end of file");
-
-        i64 new_position;
-        auto ok = SetFilePointerEx (handle, offset, &new_position, mode);
-        if (!ok || new_position < 0)
-          throw win_error ("SetFilePointerEx failed");
-
-        return new_position;
-      }
-
-      u64 tell () const
-      {
-        using namespace stream_private;
-
-        i64 position;
-        auto ok = SetFilePointerEx (handle, 0, &position, seek_offset);
-        if (!ok || position < 0)
-          throw win_error ("SetFilePointerEx failed");
-
-        return position;
-      }
-
-      u64 size () const
-      {
-        using namespace stream_private;
-
-        i64 bytes;
-        auto ok = GetFileSizeEx (handle, &bytes);
-        if (!ok || bytes < 0)
-          throw win_error ("GetFileSizeEx failed");
-
-        return bytes;
-      }
-
-      bool eof () const
-      {
-        return tell () == size ();
-      }
-
-      void* get_handle ()
-      {
-        return handle;
-      }
-
-    };
-  
-    class source :
-      public stream_base
+    class in_stream :
+      public detail::stream_base
     {
     public:
       template <typename path_t>
-      explicit source (path_t&& path) :
+      explicit in_stream (path_t&& path) :
         stream_base (
           make_string_ref (std::forward <path_t> (path)),
-          stream_private::generic_read,
-          stream_private::open_existing
-        )
+          detail::generic_read,
+          detail::open_existing)
       { }
       
-      source (source&& other) :
+      in_stream (in_stream&& other) :
         stream_base (std::move (other))
       { }
       
       using stream_base::read;
 
     };
-  
-    class sink :
-      public stream_base
+    
+    class out_stream :
+      public detail::stream_base
     {
     public:
       template <typename path_t>
-      explicit sink (path_t&& path, file_strategy strat = file_modify) :
+      explicit out_stream (path_t&& path, open_mode mode = open_mode::modify) :
         stream_base (
           make_string_ref (std::forward <path_t> (path)),
-          stream_private::generic_write,
-          strat
-        )
+          detail::generic_write,
+          strat)
       { }
       
-      sink (sink&& other) :
+      out_stream (out_stream&& other) :
         stream_base (std::move (other))
       { }
       
       using stream_base::write;
       using stream_base::flush;
       using stream_base::delete_on_close;
-      using stream_base::retain_on_close;
 
     };
-  
+    
     class stream :
-      public stream_base
+      public detail::stream_base
     {
     public:
       template <typename path_t>
-      explicit stream (path_t&& path, file_strategy strat = file_modify) :
+      explicit stream (path_t&& path, open_mode mode = open_mode::modify) :
         stream (
           make_string_ref (std::forward <path_t> (path)),
-          stream_private::generic_write |
-          stream_private::generic_read,
-          strat
-        )
+          detail::generic_write | detail::generic_read,
+          strat)
       { }
       
       stream (stream&& other) :
@@ -316,25 +160,24 @@ namespace Rk
       using stream_base::write;
       using stream_base::flush;
       using stream_base::delete_on_close;
-      using stream_base::retain_on_close;
 
-      operator source& ()
+      operator in_stream& ()
       {
-        return static_cast <source&> (
+        return static_cast <in_stream&> (
           static_cast <stream_base&> (*this)
         );
       }
 
-      operator sink& ()
+      operator out_stream& ()
       {
-        return static_cast <sink&> (
+        return static_cast <out_stream&> (
           static_cast <stream_base&> (*this)
         );
       }
 
     };
 
-    namespace stream_private
+    /*namespace detail
     {
       template <typename stream_t, file_strategy strategy>
       struct opener
@@ -381,14 +224,14 @@ namespace Rk
 
     }
 
-    using namespace stream_private::openers;
+    using namespace detail::openers;
 
     template <typename path_t, typename opener_t>
     auto open_file (path_t&& path, opener_t opener)
       -> typename opener_t::stream_t
     {
       return opener (std::forward <path_t> (path));
-    }
+    }*/
 
   } // fio
 

@@ -4,4 +4,7 @@
     <ClInclude Include="..\Include\Rk\file_stream.hpp" />
     <ClInclude Include="..\Include\Rk\raw_io.hpp" />
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="file_stream.cpp" />
+  </ItemGroup>
 </Project>
