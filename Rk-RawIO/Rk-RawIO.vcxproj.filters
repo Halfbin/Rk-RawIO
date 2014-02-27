@@ -3,6 +3,7 @@
   <ItemGroup>
     <ClInclude Include="..\Include\Rk\file_stream.hpp" />
     <ClInclude Include="..\Include\Rk\raw_io.hpp" />
+    <ClInclude Include="..\Include\Rk\chunk_loader.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="file_stream.cpp" />
