@@ -127,9 +127,12 @@ namespace Rk
         stream_base (
           make_string_ref (std::forward <path_t> (path)),
           detail::generic_write,
-          strat)
+          u32 (mode))
       { }
       
+      out_stream             (const out_stream&) = delete;
+      out_stream& operator = (const out_stream&) = delete;
+
       out_stream (out_stream&& other) :
         stream_base (std::move (other))
       { }
