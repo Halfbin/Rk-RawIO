@@ -58,7 +58,7 @@ namespace Rk
 
       static void* create_file (cstring_ref path, u32 acc, u32 share, u32 strat, u32 attr)
       {
-        auto u16_path = string_utf8_to_u16 (path);
+        auto u16_path = string_utf8_to_16 (path);
         return CreateFileW ((const wchar_t*) u16_path.c_str (), acc, share, nullptr, strat, attr, nullptr);
       }
 
