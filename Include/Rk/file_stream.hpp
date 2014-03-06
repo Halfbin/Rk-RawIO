@@ -149,14 +149,14 @@ namespace Rk
     public:
       template <typename path_t>
       explicit stream (path_t&& path, open_mode mode = open_mode::modify) :
-        stream (
+        stream_base (
           make_string_ref (std::forward <path_t> (path)),
           detail::generic_write | detail::generic_read,
-          strat)
+          u32 (mode))
       { }
       
       stream (stream&& other) :
-        stream (std::move (other))
+        stream_base (std::move (other))
       { }
       
       using stream_base::read;
