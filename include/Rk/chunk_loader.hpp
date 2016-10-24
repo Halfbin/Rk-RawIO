@@ -13,56 +13,45 @@
 
 #include <Rk/types.hpp>
 
-#ifndef RK_RAWIO_API
-#define RK_RAWIO_API __declspec(dllimport)
-#endif
+namespace Rk {
+  namespace fio {
+    static inline constexpr u32 chunk_type (char a, char b, char c, char d) {
+      return u32 (d) << 24 | u32 (c) << 16 | u32 (b) << 8 | u32 (a);
+    }
 
-namespace Rk
-{
-  namespace fio
-  {
-    #define CHUNK_TYPE_U32(a, b, c, d) (u32 (d) << 24 | u32 (c) << 16 | u32 (b) << 8 | u32 (a))
-
-    template <typename src_t>
-    class chunk_loader
-    {
+    template <typename Source>
+    class ChunkLoader {
       u32 ty, sz;
 
     public:
-      src_t& source;
+      Source& source;
 
-      chunk_loader (src_t& new_source) :
+      ChunkLoader (Source& new_source) :
         source (new_source)
       { }
 
-      u32 chunk_type () const
-      {
+      u32 chunk_type () const {
         return ty;
       }
 
-      u32 chunk_size () const
-      {
+      u32 chunk_size () const {
         return sz;
       }
 
-      bool resume ()
-      {
-        if (source.eof ())
+      bool resume () {
+        if (eof (source))
           return false;
 
         get (source, ty);
         get (source, sz);
         return true;
       }
-
     };
 
-    template <typename src_t>
-    auto make_chunk_loader (src_t& source)
-    {
-      return chunk_loader <src_t> (source);
+    template <typename Source>
+    auto make_chunk_loader (Source& source) {
+      return chunk_loader <Source> (source);
     }
-
   }
-
 }
+
