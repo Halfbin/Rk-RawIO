@@ -52,8 +52,8 @@ namespace Rk {
         Handle handle;
 
       protected:
-        StreamBase (cstring_ref   path, u32 access, u32 strategy);
-        StreamBase (u16string_ref path, u32 access, u32 strategy);
+        StreamBase (StringRef    path, u32 access, OpenMode strategy);
+        StreamBase (U16StringRef path, u32 access, OpenMode strategy);
 
         StreamBase (StreamBase&& other) :
           handle (other.handle)

@@ -12,13 +12,9 @@
 #pragma once
 
 #include <Rk/memory.hpp>
-
-#include <type_traits>
+#include <Rk/type_traits.hpp>
 
 namespace Rk {
-  template<typename Value>
-  static constexpr bool is_dense_trivially_copyable = std::is_trivially_copyable_v<Value> && (sizeof (Value) % std::alignment_of_v<Value> == 0);
-
   // basic operations
   template<typename Sink>
   void write (Sink& sink, void const* data, size_t length) {
@@ -82,7 +78,7 @@ namespace Rk {
   // single, by value
   template<typename Value, typename Source, typename = std::enable_if_t<std::is_trivially_copyable_v<Value>>>
   Value get (Source& source) {
-    raw_storage<Value> store;
+    RawStorage<Value> store;
     get (source, store.value ());
     return store.value ();
   }

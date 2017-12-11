@@ -18,6 +18,7 @@
 #ifndef _WINDOWS
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 #endif
 
 namespace Rk {
@@ -54,7 +55,7 @@ namespace Rk {
         file_attribute_normal = 0x80
       };
 
-      StreamBase::StreamBase (cstring_ref path_in, u32 access, OpenMode mode) {
+      StreamBase::StreamBase (StringRef path_in, u32 access, OpenMode mode) {
         auto path = string_utf8_to_16 (path_in);
 
         u32 win_access = ((access & read_bit )? generic_read  : 0)
@@ -75,7 +76,7 @@ namespace Rk {
         return handle;
       }
 #else
-      StreamBase::StreamBase (cstring_ref path_in, u32 access, OpenMode mode) {
+      StreamBase::StreamBase (StringRef path_in, u32 access, OpenMode mode) {
         auto path = to_string (path_in);
 
         int nix_flags = 0;
@@ -91,7 +92,7 @@ namespace Rk {
         else if (access == write_bit) nix_flags |= O_WRONLY;
         else                          nix_flags |= O_RDWR;
 
-        handle = open (path.c_str (), nix_flags, 0644);
+        handle = ::open (path.c_str (), nix_flags, 0644);
         if (handle == -1)
           throw std::system_error (errno, std::system_category (), "open failed");
       }
@@ -115,7 +116,7 @@ namespace Rk {
 #else
         ssize_t bytes_read = 0;
         do {
-          bytes_read = read (handle, buffer, capacity);
+          bytes_read = ::read (handle, buffer, capacity);
         } while (bytes_read == -1 && errno == EINTR);
 
         if (bytes_read == -1)
@@ -139,8 +140,8 @@ namespace Rk {
           throw WinError ("WriteFile failed");
 #else
         ssize_t bytes_written = 0;
-        while (bytes_written < size) {
-          ssize_t result = write (handle, (char*) data + bytes_written, size - bytes_written);
+        while ((size_t) bytes_written < size) {
+          ssize_t result = ::write (handle, (char*) data + bytes_written, size - bytes_written);
           if (result == -1) {
             if (errno == EINTR)
               continue;
@@ -156,7 +157,7 @@ namespace Rk {
 #ifdef _WINDOWS
         FlushFileBuffers (handle);
 #else
-        fsync (handle);
+        ::fsync (handle);
 #endif
       }
 
@@ -166,14 +167,14 @@ namespace Rk {
           CloseHandle (handle);
 #else
         if (handle != -1)
-          close (handle);
+          ::close (handle);
 #endif
       }
 
       u64 StreamBase::seek (i64 offset, SeekMode mode) {
-        if (mode == seek_mode::set && offset < 0)
+        if (mode == SeekMode::set && offset < 0)
           throw std::invalid_argument ("Cannot seek before start of file");
-        else if (mode == seek_mode::end && offset > 0)
+        else if (mode == SeekMode::end && offset > 0)
           throw std::invalid_argument ("Cannot seek beyond end of file");
 
 #ifdef _WINDOWS
@@ -182,7 +183,7 @@ namespace Rk {
         if (!ok || new_position < 0)
           throw WinError ("SetFilePointerEx failed");
 #else
-        off_t new_position = lseek (handle, offset, int (mode));
+        off_t new_position = ::lseek (handle, offset, int (mode));
         if (new_position == -1)
           throw std::system_error (errno, std::system_category (), "lseek failed");
 #endif
@@ -197,7 +198,7 @@ namespace Rk {
         if (!ok || position < 0)
           throw WinError ("SetFilePointerEx failed");
 #else
-        off_t position = lseek (handle, 0, SEEK_CUR);
+        off_t position = ::lseek (handle, 0, SEEK_CUR);
         if (position == -1)
           throw std::system_error (errno, std::system_category (), "lseek failed");
 #endif
@@ -212,9 +213,14 @@ namespace Rk {
         if (!ok || bytes < 0)
           throw WinError ("GetFileSizeEx failed");
 #else
-        auto current = tell ();
+      /*auto current = tell ();
         u64 bytes = seek (0, SeekMode::end);
-        seek (current, SeekMode::set);
+        seek (current, SeekMode::set);*/
+        struct stat stats;
+        auto err = ::fstat (handle, &stats);
+        if (err)
+          throw std::system_error (errno, std::system_category (), "fstat failed");
+        auto bytes = stats.st_size;
 #endif
 
         return (u64) bytes;
